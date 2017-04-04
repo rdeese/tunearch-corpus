@@ -8,10 +8,7 @@ import requests
 from lxml import html
 from unidecode import unidecode
 
-TUNE_FILE_FORMAT = "tunes-{}.json"
-# pylint: disable=line-too-long
-ORIGINAL_SCRAPE_URL = "http://tunearch.org/w/index.php?title=Special%3AAsk&q=%5B%5BCategory%3ATune%5D%5D&po=%3FIs+also+known+as%3DAlso+known+as%0D%0A%3FTheme+code+index%3DTheme+Code+Index%0D%0A%3FWas+composed+by%3DArranger%2FComposer%0D%0A%3FIt+comes+from%3DCountry%0D%0A%3FHas+genre%3DGenre%0D%0A%3FHas+rhythm%3DRhythm%0D%0A%3FIs+in+the+key+of%3DKey%0D%0A%3FHas+historical+geographical+allegiances%3DHistory%0D%0A&eq=yes&p%5Bformat%5D=json&sort%5B0%5D=Theme_code_index&order%5B0%5D=ASC&sort_num=&order_num=ASC&p%5Blimit%5D=20&p%5Boffset%5D=20&p%5Blink%5D=all&p%5Bsort%5D=Theme_code_index&p%5Bheaders%5D=show&p%5Bmainlabel%5D=Tune&p%5Bintro%5D=&p%5Boutro%5D=&p%5Bsearchlabel%5D=JSON&p%5Bdefault%5D=&eq=yes"
-# pylint: enable=line-too-long
+TUNE_FILE_FORMAT = "tune-files/tunes-{}.json"
 
 def scrape_abc_notation(url):
     """ Gets the abc notation from the provided tunearch tune url """
@@ -49,7 +46,10 @@ def request_tunes_by_theme_code(code, page, num_tunes):
 
     tunes_dict = response.json()['query']['results']
 
-    return [format_tune_entry(tune) for tune in tunes_dict.values()]
+    if not isinstance(tunes_dict, dict):
+        return []
+    else:
+        return [format_tune_entry(tune) for tune in tunes_dict.values()]
 
 def request_tunes(page, num_tunes=100):
     """ Download a page of tunes from tunearch as json """
