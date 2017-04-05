@@ -2,6 +2,7 @@
 
 import os
 import json
+import random
 
 def clean_abc(abc):
     """ Remove blacklisted lines from ABC """
@@ -31,6 +32,8 @@ def clean_abc(abc):
 def copy_abc_to_target(tune_file, target, abc_condition):
     """ Write abc from tune file to the end of the target """
     tune_json = json.load(tune_file)
+    random.shuffle(tune_json)
+
     for tune in tune_json:
         if abc_condition(tune["abc"]):
             target.write(clean_abc(tune["abc"]))
@@ -59,7 +62,9 @@ def main():
     output_file = "all-abcs.txt"
 
     with open(output_file, 'a') as outfile:
-        for filename in os.listdir(tune_file_directory):
+        files = os.listdir(tune_file_directory)
+        random.shuffle(files)
+        for filename in files:
             with open(os.path.join(tune_file_directory, filename)) as tune_file:
                 copy_abc_to_target(tune_file, outfile, all_tunes_condition)
 
