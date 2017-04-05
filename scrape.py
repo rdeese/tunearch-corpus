@@ -3,7 +3,6 @@
 from urllib import parse
 import os
 import json
-import itertools
 import requests
 from lxml import html
 from unidecode import unidecode
@@ -39,7 +38,7 @@ def request_tunes_by_theme_code(code, page, num_tunes):
     url_template = ("http://tunearch.org/w/api.php?action=ask" +
                     "&query=[[Category:Tune]]|[[Theme code index::~{}*]]" +
                     "|offset={}|limit={}&format=json")
-    target_url = url_template.format(code, page * num_tunes, num_tunes)
+    target_url = url_template.format(parse.quote(code), page * num_tunes, num_tunes)
     response = requests.get(target_url)
     if response.status_code is not 200:
         response.raise_for_status()
@@ -49,7 +48,7 @@ def request_tunes_by_theme_code(code, page, num_tunes):
     if not isinstance(tunes_dict, dict):
         return []
     else:
-        return [format_tune_entry(tune) for tune in tunes_dict.values()]
+        return tunes_dict.values()
 
 def request_tunes(page, num_tunes=100):
     """ Download a page of tunes from tunearch as json """
@@ -81,33 +80,45 @@ def transcription_is_empty(abc):
     return (("No Score" in abc) or
             ("REPLACE THIS LINE WITH THE ABC CODE OF THIS TUNE") in abc)
 
+def theme_code_symbols():
+    """ Get all of the possible theme code symbols per http://tunearch.org/wiki/Theme_Code_Index """
+    return [str(digit) + accidental + octave
+            for digit in range(1, 8)
+            for accidental in ("", "b", "#")
+            for octave in ("L", "", "H")]
+
+def theme_code_continuations(theme_code):
+    """ Return all possible continuations for a given theme code """
+    return [theme_code + symbol for symbol in theme_code_symbols() + [" "]]
+
+
 def request_all_tunes_by_code():
     """ Get all tunes in the tune archive, theme code by theme code :( """
-    tunes_per_page = 10
-    product = itertools.product(range(1, 8), repeat=4)
-    for combo in product:
-        code = ''.join([str(digit) for digit in combo])
-        tune_file = TUNE_FILE_FORMAT.format(code)
-        if os.path.isfile(tune_file):
-            continue
-        print("REQUESTING TUNES WITH THEME CODES BEGINNING IN {}".format(code))
-        all_tunes = []
-        for page in range(10):
-            page_of_tunes = request_tunes_by_theme_code(code, page, tunes_per_page)
-            filtered_page = [tune for tune in page_of_tunes
-                             if not transcription_is_empty(tune['abc'])]
-            all_tunes.extend(filtered_page)
-            print("\nGot {} more tunes, ".format(len(filtered_page)) +
-                  "writing {} tunes to file...".format(len(all_tunes)),
-                  end='', flush=True)
-            with open(tune_file, "w") as outfile:
-                outfile.writelines(json.dumps(all_tunes))
-            print("  Finished.")
-            if len(page_of_tunes) < tunes_per_page:
-                print("Presuming that page of {} tunes ".format(len(page_of_tunes)) +
-                      "is the last page, quitting.")
-                break
-            page += 1
+    tunes_per_page = 100
+    next_code_search_list = theme_code_symbols()
+
+    while len(next_code_search_list) > 0:
+        current_code_search_list = next_code_search_list
+        next_code_search_list = []
+
+        for code in current_code_search_list:
+            tune_file = TUNE_FILE_FORMAT.format(code)
+            if os.path.isfile(tune_file):
+                continue
+            print("--------- {} ---------".format(code))
+            page_of_tunes = request_tunes_by_theme_code(code, 0, tunes_per_page)
+            if len(page_of_tunes) == 100:
+                print("At least 100 tunes, adding continuations to search list.")
+                next_code_search_list.extend(theme_code_continuations(code))
+            else:
+                formatted_tunes = [format_tune_entry(tune) for tune in page_of_tunes]
+                filtered_tunes = [tune for tune in formatted_tunes
+                                  if not transcription_is_empty(tune['abc'])]
+                print("\nWriting {} tunes to file...".format(len(filtered_tunes)),
+                      end='', flush=True)
+                with open(tune_file, "w") as outfile:
+                    outfile.writelines(json.dumps(filtered_tunes))
+                print("  Finished.")
 
 def request_all_tunes():
     """ Get all tunes in the tune archive, page by page """
